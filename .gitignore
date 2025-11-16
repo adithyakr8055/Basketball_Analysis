@@ -1,4 +1,8 @@
 __pycache__/
 *.pt
 *.avi
-*.pkl
+*.pkl# generated outputs
+/output_videos/
+/logs/
+/tmp/
+*.mp4   # (only if you don't want to track any mp4. If you DO want to track input_videos, remove this line)
