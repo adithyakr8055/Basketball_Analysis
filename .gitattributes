@@ -1,10 +1,10 @@
-*.pt filter=lfs diff=lfs merge=lfs -text
-*.pth filter=lfs diff=lfs merge=lfs -text
-*.zip filter=lfs diff=lfs merge=lfs -text
-*.tar.gz filter=lfs diff=lfs merge=lfs -text
-*.mp4 filter=lfs diff=lfs merge=lfs -text
-*.avi filter=lfs diff=lfs merge=lfs -text
-models/** filter=lfs diff=lfs merge=lfs -text
-input_videos/** filter=lfs diff=lfs merge=lfs -text
+# Track model weights and big binaries with Git LFS
 models/* filter=lfs diff=lfs merge=lfs -text
+
+# Track input videos (if you want them in LFS)
 input_videos/* filter=lfs diff=lfs merge=lfs -text
+# Track other binary blobs you want in LFS (tweak patterns)
+*.pt filter=lfs diff=lfs merge=lfs -text
+*.pb filter=lfs diff=lfs merge=lfs -text
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
