@@ -1,8 +1,22 @@
+# Python / env
+venv/
+.env
 __pycache__/
-*.pt
-*.avi
-*.pkl# generated outputs
+*.pyc
+*.pyo
+*.pyd
+
+# Output & data
 /output_videos/
+/input_videos/*.mp4
+/stubs/
 /logs/
-/tmp/
-*.mp4   # (only if you don't want to track any mp4. If you DO want to track input_videos, remove this line)
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Model caches
+models/*.cache
