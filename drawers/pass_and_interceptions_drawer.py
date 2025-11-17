@@ -1,139 +1,176 @@
+# drawers/pass_and_interception_drawer.py
 import cv2
 import numpy as np
 
+
 class PassInterceptionDrawer:
     """
-    Draw pass and interception statistics as a semi-transparent overlay on each
-    frame. This drawer preserves the number of frames (one output per input frame)
-    and is robust to None / corrupted frames and mismatched pass/interception list lengths.
+    Compute passes & interceptions from *inferred* ball possession:
+
+        - For each frame, we assign the ball to the nearest player.
+        - When the owner changes between frames and both owners have teams:
+
+            same team  -> pass for that team
+            different  -> interception for new owner's team
     """
 
-    def __init__(self, overlay_alpha: float = 0.8):
+    def __init__(self, overlay_alpha: float = 0.8, max_dist_px: float = 200.0):
         self.overlay_alpha = float(overlay_alpha)
+        self.max_dist_px = float(max_dist_px)
 
-    def get_stats(self, passes, interceptions):
+    @staticmethod
+    def _center_from_bbox(bbox):
+        if not bbox or len(bbox) < 4:
+            return None
+        try:
+            x1, y1, x2, y2 = [float(v) for v in bbox[:4]]
+            return (0.5 * (x1 + x2), 0.5 * (y1 + y2))
+        except Exception:
+            return None
+
+    def _get_ball_center(self, ball_tracks_frame):
+        if not ball_tracks_frame or not isinstance(ball_tracks_frame, dict):
+            return None
+        for _, data in ball_tracks_frame.items():
+            bbox = data.get("bbox") if isinstance(data, dict) else None
+            c = self._center_from_bbox(bbox)
+            if c is not None:
+                return c
+        return None
+
+    def _infer_owner_per_frame(self, player_tracks, player_assignment, ball_tracks):
         """
-        Count total passes and interceptions for each team.
-
-        Args:
-            passes (list[int]): per-frame pass code (0=no pass, 1=team1, 2=team2)
-            interceptions (list[int]): per-frame interception code (0=no,1=team1,2=team2)
-
-        Returns:
-            tuple: (team1_passes, team2_passes, team1_interceptions, team2_interceptions)
+        Returns list of (owner_pid or None, team_id or -1) per frame.
         """
-        # Defensive: if None provided, treat as empty
-        if passes is None:
-            passes = []
-        if interceptions is None:
-            interceptions = []
+        N = max(len(player_tracks or []), len(player_assignment or []), len(ball_tracks or []))
+        owners = []
+        last_owner = None
+        last_team = -1
 
-        # Count occurrences - robust if lists are different lengths
-        team1_passes = sum(1 for x in passes if x == 1)
-        team2_passes = sum(1 for x in passes if x == 2)
-        team1_interceptions = sum(1 for x in interceptions if x == 1)
-        team2_interceptions = sum(1 for x in interceptions if x == 2)
+        for i in range(N):
+            pt_frame = player_tracks[i] if i < len(player_tracks) else None
+            pa_frame = player_assignment[i] if i < len(player_assignment) else None
+            bt_frame = ball_tracks[i] if i < len(ball_tracks) else None
 
-        return team1_passes, team2_passes, team1_interceptions, team2_interceptions
+            ball_c = self._get_ball_center(bt_frame)
+            owner_pid = last_owner
+            owner_team = last_team
 
-    def draw(self, video_frames, passes, interceptions):
-        """
-        Draw overlay on each frame and return a new list with the same length as input frames.
+            if ball_c is not None and pt_frame and isinstance(pt_frame, dict) and isinstance(pa_frame, dict):
+                bx, by = ball_c
+                best_pid = None
+                best_dist2 = None
 
-        Args:
-            video_frames (list[numpy.ndarray]): list of frames (may contain None).
-            passes (list[int]): global list for the whole video (len may be <= frames)
-            interceptions (list[int]): global list for the whole video (len may be <= frames)
+                for pid, pdata in pt_frame.items():
+                    bbox = pdata.get("bbox") if isinstance(pdata, dict) else None
+                    pc = self._center_from_bbox(bbox)
+                    if pc is None:
+                        continue
+                    px, py = pc
+                    dx = px - bx
+                    dy = py - by
+                    d2 = dx * dx + dy * dy
+                    if best_dist2 is None or d2 < best_dist2:
+                        best_dist2 = d2
+                        best_pid = pid
 
-        Returns:
-            list[numpy.ndarray]: annotated frames (same length as video_frames)
-        """
-        num_frames = len(video_frames) if video_frames is not None else 0
+                if best_pid is not None and best_dist2 is not None:
+                    dist = best_dist2 ** 0.5
+                    if dist <= self.max_dist_px:
+                        team_id = pa_frame.get(best_pid, None)
+                        if team_id in (1, 2):
+                            owner_pid = best_pid
+                            owner_team = team_id
 
-        # Defensive padding of event lists so slicing later is safe
-        def pad_list(lst, length):
-            if lst is None:
-                return [0] * length
-            if len(lst) >= length:
-                return lst
-            return lst + [0] * (length - len(lst))
+            if owner_pid is None or owner_team not in (1, 2):
+                owners.append((None, -1))
+            else:
+                last_owner = owner_pid
+                last_team = owner_team
+                owners.append((owner_pid, owner_team))
 
-        passes = pad_list(list(passes) if passes is not None else [], num_frames)
-        interceptions = pad_list(list(interceptions) if interceptions is not None else [], num_frames)
+        return owners
 
-        output_video_frames = []
-        for frame_num in range(num_frames):
-            frame = video_frames[frame_num]
+    def draw(self, video_frames, player_tracks, player_assignment, ball_tracks):
+        if video_frames is None:
+            return []
 
-            # Safety: if frame is None or invalid, create a black frame fallback
-            if frame is None or not isinstance(frame, (np.ndarray,)):
-                # create a reasonable-sized fallback if we can't infer size
-                fallback_h, fallback_w = (720, 1280)
-                if isinstance(frame, np.ndarray):
-                    fallback_h, fallback_w = frame.shape[:2]
-                fallback = np.zeros((fallback_h, fallback_w, 3), dtype=np.uint8)
-                frame_drawn = self.draw_frame(fallback, frame_num, passes, interceptions)
-                output_video_frames.append(frame_drawn)
-                continue
+        N = len(video_frames)
+        owners = self._infer_owner_per_frame(player_tracks, player_assignment, ball_tracks)
 
-            # main draw
-            frame_drawn = self.draw_frame(frame.copy(), frame_num, passes, interceptions)
-            output_video_frames.append(frame_drawn)
+        if len(owners) < N:
+            owners += [(None, -1)] * (N - len(owners))
+        else:
+            owners = owners[:N]
 
-        return output_video_frames
+        passes_t1 = passes_t2 = 0
+        inter_t1 = inter_t2 = 0
 
-    def draw_frame(self, frame, frame_num, passes, interceptions):
-        """
-        Draw overlay with cumulative stats up to frame_num (inclusive).
-        Returns the same frame object annotated.
-        """
-        # Frame shape
+        out_frames = []
+
+        for i, frame in enumerate(video_frames):
+            frame_copy = frame.copy()
+
+            if i > 0:
+                prev_owner, prev_team = owners[i - 1]
+                owner, team = owners[i]
+
+                if (
+                    prev_owner is not None and owner is not None and
+                    prev_owner != owner and prev_team in (1, 2) and team in (1, 2)
+                ):
+                    if prev_team == team:
+                        # pass
+                        if team == 1:
+                            passes_t1 += 1
+                        else:
+                            passes_t2 += 1
+                    else:
+                        # interception by new team
+                        if team == 1:
+                            inter_t1 += 1
+                        else:
+                            inter_t2 += 1
+
+            try:
+                frame_drawn = self._draw_overlay(
+                    frame_copy, passes_t1, passes_t2, inter_t1, inter_t2
+                )
+            except Exception as e:
+                print(f"[DBG] PassInterceptionDrawer.draw: exception on frame {i}: {e}")
+                frame_drawn = frame_copy
+
+            out_frames.append(frame_drawn)
+
+        return out_frames
+
+    def _draw_overlay(self, frame, passes_t1, passes_t2, inter_t1, inter_t2):
+        overlay = frame.copy()
         h, w = frame.shape[:2]
 
-        # Compute adaptive font & sizes based on resolution
-        base_scale = max(0.5, min(w, h) / 1000 * 0.7)  # scales with resolution
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        thickness = max(1, int(round(base_scale * 2)))
-
-        # Overlay rectangle coordinates (relative)
-        rect_x1 = int(w * 0.05)
-        rect_y1 = int(h * 0.70)
+        rect_x1 = int(w * 0.01)
+        rect_y1 = int(h * 0.75)
         rect_x2 = int(w * 0.45)
-        rect_y2 = int(h * 0.90)
+        rect_y2 = int(h * 0.92)
 
-        # Text positions
-        text_x = rect_x1 + int(w * 0.02)
-        text_y1 = rect_y1 + int((rect_y2 - rect_y1) * 0.35)
-        text_y2 = rect_y1 + int((rect_y2 - rect_y1) * 0.75)
-
-        # Build overlay
-        overlay = frame.copy()
         cv2.rectangle(overlay, (rect_x1, rect_y1), (rect_x2, rect_y2), (255, 255, 255), -1)
-
-        # Blend overlay onto frame
         alpha = max(0.0, min(1.0, self.overlay_alpha))
         cv2.addWeighted(overlay, alpha, frame, 1 - alpha, 0, frame)
 
-        # Prepare cumulative lists up to current frame
-        passes_till_frame = passes[:frame_num + 1]
-        interceptions_till_frame = interceptions[:frame_num + 1]
+        font_scale = 0.7
+        thickness = 2
+        line_h = int(h * 0.05)
 
-        team1_passes, team2_passes, team1_interceptions, team2_interceptions = self.get_stats(
-            passes_till_frame, interceptions_till_frame
-        )
+        text_x = rect_x1 + int(w * 0.02)
+        text_y1 = rect_y1 + line_h
+        text_y2 = rect_y1 + 2 * line_h
 
-        # Compose text lines
-        line1 = f"Team 1 — Passes: {team1_passes}  Interceptions: {team1_interceptions}"
-        line2 = f"Team 2 — Passes: {team2_passes}  Interceptions: {team2_interceptions}"
+        text1 = f"White Team  Passes: {passes_t1}  Interceptions: {inter_t1}"
+        text2 = f"Blue Team   Passes: {passes_t2}  Interceptions: {inter_t2}"
 
-        # Put text (with shadow for readability)
-        def put_text_with_shadow(img, text, org, font, scale, color=(0, 0, 0), thickness=1):
-            # shadow
-            cv2.putText(img, text, (org[0] + 1, org[1] + 1), font, scale, (255, 255, 255), thickness + 1, cv2.LINE_AA)
-            # main
-            cv2.putText(img, text, org, font, scale, color, thickness, cv2.LINE_AA)
-
-        put_text_with_shadow(frame, line1, (text_x, text_y1), font, base_scale, (0, 0, 0), thickness)
-        put_text_with_shadow(frame, line2, (text_x, text_y2), font, base_scale, (0, 0, 0), thickness)
+        cv2.putText(frame, text1, (text_x, text_y1),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness)
+        cv2.putText(frame, text2, (text_x, text_y2),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness)
 
         return frame
