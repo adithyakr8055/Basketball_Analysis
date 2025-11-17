@@ -134,7 +134,7 @@ python main.py input_videos/video1.mp4 --output_video output_videos/output.avi -
 
 ---
 
-# 🧠 MODULE EXPLANATION (Panel-Ready)
+# 🧠 MODULE EXPLANATION 
 
 ## 👤 Player Detection & Tracking
 - YOLO-based detector  
