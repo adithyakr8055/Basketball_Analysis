@@ -123,7 +123,7 @@ class PassInterceptionDrawer:
         )
 
         # Compose text lines
-        line1 = f"Team  — Passes: {team1_passes}  Interceptions: {team1_interceptions}"
+        line1 = f"Team 1 — Passes: {team1_passes}  Interceptions: {team1_interceptions}"
         line2 = f"Team 2 — Passes: {team2_passes}  Interceptions: {team2_interceptions}"
 
         # Put text (with shadow for readability)
