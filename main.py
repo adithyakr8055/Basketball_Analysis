@@ -22,7 +22,8 @@ sys.path.append(folder)
 from utils.video_utils import read_video, save_video  # expects (frames, meta)
 from utils import read_stub, save_stub  # generic stub helpers
 from trackers import PlayerTracker, BallTracker
-from team_assigner import TeamAssigner
+from team_assigner.team_assigner import TeamAssigner
+
 from court_keypoint_detector import CourtKeypointDetector
 from ball_aquisition import BallAquisitionDetector
 from pass_and_interception_detector import PassAndInterceptionDetector
@@ -588,8 +589,9 @@ def main():
         ("BallTracksDrawer", ball_tracks_drawer.draw, [ball_tracks]),
         ("CourtKeypointDrawer", court_keypoint_drawer.draw, [court_keypoints]),
         ("FrameNumberDrawer", frame_number_drawer.draw, []),
-        ("TeamBallControlDrawer", team_ball_control_drawer.draw, [player_assignment, ball_acquisition]),
-        ("PassInterceptionDrawer", pass_and_interceptions_drawer.draw, [passes, interceptions]),
+        ("TeamBallControlDrawer", team_ball_control_drawer.draw, [player_tracks, player_assignment, ball_tracks]),
+        ("PassInterceptionDrawer", pass_and_interceptions_drawer.draw, [player_tracks, player_assignment, ball_tracks]),
+
         ("SpeedAndDistanceDrawer", speed_and_distance_drawer.draw, [player_tracks, player_distances_per_frame, player_speed_per_frame]),
         ("TacticalViewDrawer", tactical_view_drawer.draw, [tactical_converter.court_image_path,
                                                            tactical_converter.width,
