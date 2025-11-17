@@ -1,178 +1,296 @@
-Basketball Analytics System (BVA)
+# 🏀 Basketball Analytics System (BVA)
+### Automated Player Tracking, Event Detection & Tactical Analytics using Computer Vision + Deep Learning
 
-Automated Player Tracking, Event Detection & Tactical Analytics Using Computer Vision + Deep Learning
+---
 
-⸻
+## 📌 Summary
 
-Summary (elevator pitch)
+**Basketball Analytics System (BVA)** is an end-to-end computer-vision pipeline that processes raw basketball match videos and automatically generates:
 
-BVA is an end-to-end computer-vision pipeline that processes basketball match video and produces:
-	•	player tracking & IDs
-	•	ball tracking
-	•	court detection & homography
-	•	team assignment & jersey OCR
-	•	pose estimation
-	•	speed/distance metrics
-	•	passes, interceptions, shots, rebounds
-	•	tactical analytics (heatmaps, shot maps, trajectories)
+- 👤 Player detection & tracking  
+- 🏀 Ball detection & tracking  
+- 📐 Court keypoint detection + homography  
+- 🔵🔴 Team assignment (CLIP + KMeans fallback)  
+- 🔢 Jersey number OCR (EasyOCR + preprocessing)  
+- 🧍 Pose estimation  
+- 🔄 Pass & interception detection  
+- 🎯 Shot detection & rebounds  
+- ⚡ Speed & distance metrics  
+- 🗺 Top-down tactical analytics  
 
-This repo is modular so missing optional modules will be skipped gracefully (see main.py).
+The system is **modular** — missing modules are skipped safely.
 
-⸻
+---
 
-Quick status
+# 📁 Repository Structure (Annotated)
 
-Repo root: basketball_analysis/ — run scripts from this root so imports like from utils import jersey_ocr work.
-
-Large files (models, videos) should be managed by Git LFS.
-
-⸻
-
-Repo structure (annotated)
-
+```
 basketball_analysis/
-├─ main.py                      # Main runner (orchestration, robust/fallback logic)
-├─ requirements.txt             # Python dependencies
-├─ models/                      # Large model files tracked via Git LFS (.pt, weights)
-├─ input_videos/                # Place input videos here
-├─ output_videos/               # Annotated/processed videos written here
-├─ utils/                       # Core shared utilities
-│  ├─ jersey_ocr.py             # OCR helper (preprocessing, easyocr/pytesseract wrapper)
-│  ├─ video_utils.py            # read_video / save_video helpers
-│  ├─ bbox_utils.py             # bbox helpers, measure_distance, centers, etc.
-│  └─ ocr_smoothing.py          # temporal smoothing helper (create this if missing)
-├─ trackers/                    # Player & ball trackers (DeepSORT + Kalman wrappers)
-├─ court_keypoint_detector/     # Court line/keypoint detection + homography
-├─ team_assigner/               # Team assignment (CLIP + kmeans fallback)
-├─ drawers/                     # Drawing overlays for output frames
-├─ tools/                       # Small helper/debugging scripts (distance_debugger, run_ocr_on_crops)
-├─ stubs/                       # Pickled intermediate outputs (player_tracks, ball_tracks, etc.)
-└─ training_notebooks/          # Notebooks used during experimentation/training
+│
+├── main.py                         # 🚀 Main pipeline orchestrator
+├── requirements.txt                # 📦 Python dependencies
+│
+├── models/                         # 🤖 YOLO + keypoint detector models (Git LFS)
+│     ├── player_detector.pt
+│     ├── ball_detector_model.pt
+│     └── court_keypoint_detector.pt
+│
+├── input_videos/                   # 🎥 Input videos
+├── output_videos/                  # 🧵 Annotated processed videos
+│
+├── utils/                          # 🧰 Core utilities
+│     ├── jersey_ocr.py             # 🔢 Jersey OCR pipeline
+│     ├── ocr_smoothing.py          # 🧠 Number smoothing (temporal)
+│     ├── video_utils.py            # 🎬 Read/save videos
+│     ├── bbox_utils.py             # 🔲 BBox helpers, distance functions
+│
+├── trackers/                       # 🛰 DeepSORT + Kalman tracking
+├── team_assigner/                  # 🔵🔴 CLIP + KMeans team assignment
+├── court_keypoint_detector/        # 📐 Court line detection + homography
+├── drawers/                        # ✏️ Drawing overlays
+├── ball_aquisition/                # 🏀 Ball possession logic
+│
+├── tools/                          # 🔧 Debugging scripts (OCR tester, crops)
+│
+├── pass_and_interception_detector.py # 🔄 Pass/interception detection
+├── tactical_view_converter/        # 🗺 Tactical top-down projection
+├── speed_and_distance_calculator/  # ⚡ Speed/distance metrics
+├── pose_estimator.py               # 🧍 Pose estimation (MediaPipe)
+├── shot_detector.py                # 🎯 Shot detection logic
+│
+├── stubs/                          # 💾 Cached intermediate outputs (PKL files)
+│     ├── player_tracks.pkl
+│     ├── ball_tracks.pkl
+│     ├── passes_stub.pkl
+│     └── jersey_ocr_results.pkl
+│
+└── training_notebooks/             # 📓 Model training experiments
+```
 
+---
 
-⸻
+# ⚙️ Installation & Setup
 
-Installation & Setup
-
-1) Clone & Git LFS
-
+## 1️⃣ Clone the Repository
+```bash
 git clone https://github.com/<your_user>/Basketball_Analysis.git
 cd Basketball_Analysis
+```
+
+---
+
+## 2️⃣ Git LFS Setup (Required for .pt & video files)
+```bash
 git lfs install
 git lfs pull
+```
 
-If you use SSH remote replace https://... with git@github.com:....
+---
 
-2) Create & activate venv (recommended)
+## 3️⃣ Create & Activate Virtual Environment (macOS/Linux)
 
-macOS / Linux (using venv):
-
+```bash
 python3 -m venv basketball_venv
 source basketball_venv/bin/activate
-# when done: deactivate
+```
 
-If your venv is named basketball_venv311 (as your prompt shows):
+Your environment name (as per your system):
 
+```bash
 source basketball_venv311/bin/activate
+```
 
-Conda users:
+To deactivate:
+```bash
+deactivate
+```
 
-conda create -n bva python=3.10
-conda activate bva
+---
 
-3) Install Python dependencies
-
+## 4️⃣ Install Dependencies
+```bash
 pip install -r requirements.txt
+```
 
-If you need GPU PyTorch, install the correct wheel for your CUDA version (visit pytorch.org).
+---
 
-⸻
+# ▶️ Running the Full Pipeline
 
-Running the pipeline
+Place your input video in:
 
-Basic run (from repo root):
+```
+input_videos/video1.mp4
+```
 
-python main.py input_videos/video1.mp4 --output_video output_videos/result.avi
+## Basic run:
+```bash
+python main.py input_videos/video1.mp4 --output_video output_videos/output.avi
+```
 
-Force rerun detectors and ignore cached stubs:
+## Force rerun detectors (ignore cached stubs):
+```bash
+python main.py input_videos/video1.mp4 --output_video output_videos/output.avi --force_rerun_detectors
+```
 
-python main.py input_videos/video1.mp4 --output_video output_videos/result.avi --force_rerun_detectors
+---
 
-OCR debug script (examples)
-	•	tools/run_ocr_on_crops.py — runs OCR on saved crop images and writes CSV output.
-	•	tools/ocr_full_test_player.py — test OCR on a single player across frames.
+# 🧠 MODULE EXPLANATION (Panel-Ready)
 
-Run from repo root (so imports resolve):
+## 👤 Player Detection & Tracking
+- YOLO-based detector  
+- DeepSORT assigns stable track IDs  
+- Kalman filter smooths trajectory  
 
+📦 Output: `player_tracks.pkl`
+
+---
+
+## 🏀 Ball Detection & Tracking
+- YOLO small-object detection  
+- Selects best ball bbox per frame  
+- Interpolates missing frames  
+
+📦 Output: `ball_tracks.pkl`
+
+---
+
+## 📐 Court Keypoint Detection & Homography
+- Detects court intersections  
+- Computes pixel → real-world transformation  
+- Used for speed, distance, tactical view  
+
+📦 Output: `court_keypoints.pkl`
+
+---
+
+## 🔵🔴 Team Assignment
+### 1. CLIP classifier (preferred)  
+Classifies jersey crops as:
+- `"white shirt"`
+- `"dark blue shirt"`
+
+### 2. KMeans fallback  
+Used when:
+- transformers not installed  
+- GPU unavailable  
+- fast_mode=True  
+
+### 3. Temporal Voting  
+Ensures stable team assignment per player ID.
+
+📦 Output: `team_assignment_stub.pkl`
+
+---
+
+## 🔢 Jersey Number OCR
+### Pipeline:
+1. Crop upper jersey region  
+2. Apply 4 preprocessing variations:  
+   - Bilateral + adaptive threshold  
+   - CLAHE + Otsu threshold  
+   - Sharpen + upsample  
+   - Equalize histogram  
+3. Deskew  
+4. EasyOCR (preferred) or pytesseract fallback  
+5. Temporal smoothing  
+6. Confidence-based filtering  
+7. Majority vote per-player  
+
+📦 Output: `jersey_ocr_results.pkl`
+
+---
+
+## 🏀 Ball Possession Detection
+Uses:
+- Distance to player  
+- Containment ratio (ball inside bbox)  
+- Consecutive frames (≥11 frames threshold)  
+- Backfilling for continuity  
+
+📦 Output: `ball_acquisition.pkl`
+
+---
+
+## 🔄 Pass & Interception Detection
+Rules:
+- If possessor changes **within same team → PASS**  
+- If possessor changes **between teams → INTERCEPTION**  
+
+📦 Outputs:
+- `passes_stub.pkl`
+- `interceptions_stub.pkl`
+
+---
+
+## ⚡ Speed & Distance Metrics
+Uses court homography → real meters.
+
+Outputs:
+- Instant speed  
+- Top speed  
+- Average speed  
+- Total distance  
+
+📦 Output: `player_speeds.pkl`
+
+---
+
+## 🗺 Tactical Analytics (Top-Down Court)
+- Converts positions to 2D court  
+- Shows spacing, formations, player roles, shot maps, heatmaps  
+
+---
+
+# 🔧 Debug Scripts
+
+Run OCR tester:
+```bash
 python tools/ocr_full_test_player.py
+```
 
-If you see ModuleNotFoundError: No module named 'utils' run:
-
+Fix imports:
+```bash
 export PYTHONPATH="$PWD:$PYTHONPATH"
-python tools/ocr_full_test_player.py
+```
 
+---
 
-⸻
+# 🌐 Git + LFS Push Instructions
 
-Important implementation notes (for panel)
+## Check remote:
+```bash
+git remote -v
+```
 
-Main pipeline (main.py)
-	•	Orchestrates reading frames, running detectors/trackers, computing homography, converting to tactical/top-down coordinates, running event detectors (ball acquisition, pass detection), applying OCR on sampled frames, smoothing OCR results, drawing overlays and saving final video.
-	•	Is defensive: uses read_stub/save_stub to cache heavy outputs and gracefully skips optional modules (pose, shot) if dependencies absent.
-
-Team assignment
-	•	Attempts CLIP-based classification (if transformers + torch available) to label player crops like “white shirt” vs “dark blue shirt”.
-	•	Falls back to a k-means color heuristic when CLIP is not available or when fast_mode=True.
-	•	The final mapping is computed by voting across frames to produce a stable player_id -> team_id map.
-
-Jersey OCR
-	•	utils/jersey_ocr.py crops an upper region of player bbox, runs multiple preprocess methods (CLAHE, bilateral + adaptive threshold, sharpen+resize, histogram equalization), deskews, then calls EasyOCR (preferred) or pytesseract as fallback.
-	•	main.py samples frames at SAMPLE_RATE (default 5) to speed up OCR, then propagates results to neighboring frames and performs temporal aggregation.
-	•	If OCR quality is low, switch to easyocr and/or reduce SAMPLE_RATE so you process more frames during debugging.
-
-Ball acquisition & passes
-	•	Ball acquisition chooses the best ball bbox per frame and assigns a holding player using distance/containment heuristics and a consecutive-frame threshold before confirming possession.
-	•	Pass detection uses change-of-possessor logic and checks team assignments to label passes vs interceptions.
-
-Distances & homography
-	•	Accurate player distances rely on a correct homography between image and court coordinates. If homography is missing or miscomputed, distances will appear huge or inconsistent.
-
-⸻
-
-Recommended quick fixes (based on issues you reported)
-	•	Create utils/ocr_smoothing.py if missing — add a simple temporal smoothing function so main.py can import it.
-	•	Ensure PYTHONPATH contains repo root so from utils import jersey_ocr works when running tools directly.
-	•	Prefer easyocr in pipeline if installed — it handles digits on textured jerseys better.
-
-⸻
-
-Git + LFS push (safe sequence)
-	1.	Ensure LFS tracking for large types and commit .gitattributes:
-
-git lfs install
-git lfs track "*.pt" "*.mp4" "*.avi"
-git add .gitattributes
-
-	2.	Stage & commit everything:
-
-git add .
-git commit -m "Project snapshot: BVA"
-
-	3.	Set remote if needed and push:
-
+## Set remote:
+```bash
 git remote set-url origin https://github.com/adithyakr8055/Basketball_Analysis.git
-git branch -M main
+```
+
+## Track large files:
+```bash
+git lfs track "*.pt"
+git lfs track "*.mp4"
+git lfs track "*.avi"
+git add .gitattributes
+```
+
+## Stage all:
+```bash
+git add .
+```
+
+## Commit:
+```bash
+git commit -m "Full BVA project"
+```
+
+## Push:
+```bash
 git push -u origin main
+```
 
-If you get remote origin already exists, use git remote -v to inspect and git remote set-url origin <url> to update.
+---
 
-⸻
-
-
-License
-
-Choose one (edit inside this README): MIT / Apache-2.0 / Proprietary (internal). Let me know which and I will add full license text.
-
-⸻
-
-If you want, I will create the missing utils/ocr_smoothing.py stub next and push both the README and stub commands to your terminal. Tell me which files you want me to create now.
+# 📜 License
+MIT License 
