@@ -13,9 +13,7 @@ basketball_venv311/
 .DS_Store
 
 # Data / outputs / large artifacts (do not track)
-output_videos/
 output_images/
-stubs/
 *.pkl
 *.npz
 *.npy
@@ -25,7 +23,6 @@ tmp/
 
 # model / checkpoints
 checkpoints/
-models/
 *.pt
 *.pth
 
