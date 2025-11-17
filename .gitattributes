@@ -1,0 +1,14 @@
+adjust filter=lfs diff=lfs merge=lfs -text
+pattern filter=lfs diff=lfs merge=lfs -text
+to filter=lfs diff=lfs merge=lfs -text
+your filter=lfs diff=lfs merge=lfs -text
+extensions filter=lfs diff=lfs merge=lfs -text
+*.pt filter=lfs diff=lfs merge=lfs -text
+\# filter=lfs diff=lfs merge=lfs -text
+*.onnx filter=lfs diff=lfs merge=lfs -text
+*.h5 filter=lfs diff=lfs merge=lfs -text
+*.pb filter=lfs diff=lfs merge=lfs -text
+*.mp4 filter=lfs diff=lfs merge=lfs -text
+*.avi filter=lfs diff=lfs merge=lfs -text
+*.mov filter=lfs diff=lfs merge=lfs -text
+*.pth filter=lfs diff=lfs merge=lfs -text
