@@ -11,6 +11,8 @@ import sys
 import traceback
 import argparse
 from typing import Tuple, Optional, List, Dict, Any
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from tools.ocr_smoothing import temporal_smooth_player_labels
 
 # ensure repo root import path (adjust if your layout differs)
 folder = os.path.dirname(__file__)
@@ -284,8 +286,13 @@ def main():
             ocr_results = None
 
         if ocr_results is None or len(ocr_results) != n_frames:
-            SAMPLE_RATE = 5
-            OCR_ENGINE = "pytesseract"
+            SAMPLE_RATE = 1
+            try:
+                import easyocr  # just to test availability
+                OCR_ENGINE = "easyocr"
+            except Exception:
+                OCR_ENGINE = "pytesseract"
+
             print(f"[INFO] Running FAST jersey OCR sampling every {SAMPLE_RATE} frames using {OCR_ENGINE}...")
 
             def _filter_player_tracks_for_ocr(frames, player_tracks, min_width=48, min_height=80):
@@ -333,19 +340,28 @@ def main():
                 ocr_results = [ {} for _ in range(n_frames) ]
 
         ocr_results = ensure_list_length(ocr_results, n_frames)
-        if aggregate_player_numbers is not None and ocr_results:
+        
+        # --- START REPLACEMENT ---
+        # (The import is already at the top of the file)
+        if ocr_results:
             try:
-                player_number_map = aggregate_player_numbers(ocr_results, min_confidence=0.4, min_occurrence=2)
-                print("[INFO] Aggregated player numbers:", player_number_map)
+                # Use the new temporal smoothing function
+                smoothed_map = temporal_smooth_player_labels(ocr_results, min_confidence=0.25, min_occurrence=2, window_size=11)
+                player_number_map = smoothed_map
+                print("[INFO] Smoothed player_number_map:", player_number_map)
             except Exception as e:
-                print("[WARN] aggregate_player_numbers failed:", e)
+                print("[WARN] temporal_smooth_player_labels failed:", e)
+                traceback.print_exc()
                 player_number_map = {}
+                
             # Debug sample print
             print("[DBG OCR] Sample per-frame OCR results (first 3 frames):")
             for i in range(min(3, len(ocr_results))):
                 sample_keys = list(ocr_results[i].keys())[:6]
                 sample_dict = {k: ocr_results[i][k] for k in sample_keys}
                 print(f" frame {i}: {sample_dict}")
+        # --- END REPLACEMENT ---
+                
     else:
         ocr_results = [ {} for _ in range(n_frames) ]
         player_number_map = {}
@@ -436,11 +452,17 @@ def main():
             pass
     print("----------------------------------------------------------\n")
 
-    # SANITY: meters per pixel
-    print("[SANITY] tactical dims:", tactical_converter.width, tactical_converter.height,
-          "actual_m:", tactical_converter.actual_width_in_meters, tactical_converter.actual_height_in_meters)
-    m_per_px = (tactical_converter.actual_width_in_meters / max(1, tactical_converter.width) + tactical_converter.actual_height_in_meters / max(1, tactical_converter.height)) / 2.0
-    print(f"[SANITY] meters_per_pixel ~ {m_per_px:.6f} m/px")
+    # --- START REPLACEMENT ---
+    import pickle
+    try:
+        m_per_px = pickle.load(open("stubs/m_per_px.pkl","rb"))
+        print("[INFO] Loaded calibrated meters_per_px =", m_per_px)
+    except:
+        print("[WARN] No calibrated m_per_px found, using fallback")
+        m_per_px = (tactical_converter.actual_width_in_meters / max(1, tactical_converter.width)
+                    + tactical_converter.actual_height_in_meters / max(1, tactical_converter.height)) / 2.0
+        print("[SANITY] fallback meters_per_pixel ~", m_per_px)
+    # --- END REPLACEMENT ---
 
     try:
         save_stub(stub("tactical_player_positions_stub.pkl"), tactical_player_positions)

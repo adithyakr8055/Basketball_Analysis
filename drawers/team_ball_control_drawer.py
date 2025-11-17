@@ -152,9 +152,9 @@ class TeamBallControlDrawer:
                 team_1_pct = (team_1_num_frames / total_count) * 100.0 if total_count else 0.0
                 team_2_pct = (team_2_num_frames / total_count) * 100.0 if total_count else 0.0
 
-        cv2.putText(frame, f"Team 1 Ball Control: {team_1_pct:.2f}%", (text_x, text_y1),
+        cv2.putText(frame, f"Team  Ball Control: {team_1_pct:.2f}%", (text_x, text_y1),
                     cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), font_thickness)
-        cv2.putText(frame, f"Team 2 Ball Control: {team_2_pct:.2f}%", (text_x, text_y2),
-                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), font_thickness)
+        """cv2.putText(frame, f"Team 2 Ball Control: {team_2_pct:.2f}%", (text_x, text_y2),
+                    cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), font_thickness)"""
 
         return frame

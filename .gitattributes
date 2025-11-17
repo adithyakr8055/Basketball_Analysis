@@ -1,9 +1,0 @@
-# track models & weights
-models/** filter=lfs diff=lfs merge=lfs -text
-*.pt filter=lfs diff=lfs merge=lfs -text
-*.pth filter=lfs diff=lfs merge=lfs -text
-# videos
-input_videos/** filter=lfs diff=lfs merge=lfs -text
-output_videos/** filter=lfs diff=lfs merge=lfs -text
-*.mp4 filter=lfs diff=lfs merge=lfs -text
-*.avi filter=lfs diff=lfs merge=lfs -text

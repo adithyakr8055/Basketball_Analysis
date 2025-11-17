@@ -123,8 +123,8 @@ class PassInterceptionDrawer:
         )
 
         # Compose text lines
-        line1 = f"Team 1 — Passes: {team1_passes}  Interceptions: {team1_interceptions}"
-        line2 = f"Team 2 — Passes: {team2_passes}  Interceptions: {team2_interceptions}"
+        line1 = f"Team  — Passes: {team1_passes}  Interceptions: {team1_interceptions}"
+        """line2 = f"Team 2 — Passes: {team2_passes}  Interceptions: {team2_interceptions}"""
 
         # Put text (with shadow for readability)
         def put_text_with_shadow(img, text, org, font, scale, color=(0, 0, 0), thickness=1):
@@ -134,6 +134,6 @@ class PassInterceptionDrawer:
             cv2.putText(img, text, org, font, scale, color, thickness, cv2.LINE_AA)
 
         put_text_with_shadow(frame, line1, (text_x, text_y1), font, base_scale, (0, 0, 0), thickness)
-        put_text_with_shadow(frame, line2, (text_x, text_y2), font, base_scale, (0, 0, 0), thickness)
+        """put_text_with_shadow(frame, line2, (text_x, text_y2), font, base_scale, (0, 0, 0), thickness)"""
 
         return frame
