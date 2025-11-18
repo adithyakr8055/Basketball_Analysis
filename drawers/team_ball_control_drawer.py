@@ -97,7 +97,7 @@ class TeamBallControlDrawer:
 
         return np.array(team_per_frame, dtype=int)
 
-    # ---------- public API ---------- #
+    
 
     def draw(self, video_frames, player_tracks, player_assignment, ball_tracks):
         """
