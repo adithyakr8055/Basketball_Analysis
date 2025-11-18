@@ -1,11 +1,11 @@
-# 🏀 Basketball Analytics System (BVA)
+# 🏀 Basketball Analytics System 
 ### Automated Player Tracking, Event Detection & Tactical Analytics using Computer Vision + Deep Learning
 
 ---
 
 ## 📌 Summary
 
-**Basketball Analytics System (BVA)** is an end-to-end computer-vision pipeline that processes raw basketball match videos and automatically generates:
+**Basketball Analytics System ** is an end-to-end computer-vision pipeline that processes raw basketball match videos and automatically generates:
 
 - 👤 Player detection & tracking  
 - 🏀 Ball detection & tracking  
