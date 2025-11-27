@@ -14,7 +14,6 @@ basketball_venv311/
 
 # Data / outputs / large artifacts (do not track)
 output_images/
-*.pkl
 *.npz
 *.npy
 logs/
@@ -23,8 +22,6 @@ tmp/
 
 # model / checkpoints
 checkpoints/
-*.pt
-*.pth
 
 # Notebook checkpoints
 .ipynb_checkpoints/
@@ -35,5 +32,4 @@ dist/
 build/
 
 # git lfs metadata (already tracked by lfs)
-.gitattributes
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-main.py - robust runner for basketball_analysis (updated with pose, shot detection, metrics)
+main.py - robust runner for basketball_analysis (updated with pose, shot detection, metrics, predictive engine, CSV export, auto-analytics, visualizations, and pass network)
 
 This version is defensive: optional modules (pose/activity/shot) are loaded if available.
 If they're missing the pipeline will continue and produce output video/stubs for the rest of
@@ -10,7 +10,10 @@ import os
 import sys
 import traceback
 import argparse
+import pickle
+import csv
 from typing import Tuple, Optional, List, Dict, Any
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from tools.ocr_smoothing import temporal_smooth_player_labels
 
@@ -70,18 +73,17 @@ try:
     _HAS_SHOT_MODULE = True
 except Exception as e:
     print(f"[WARN] shot_detector not available: {e}. Shot detection will be skipped.")
-    # ensure names exist to avoid NameError later
     detect_shots_heuristic = None
     evaluate_shots = None
 
-# jersey OCR utils (you said you've added)
+# jersey OCR utils
 try:
     from utils.jersey_ocr import batch_recognize_over_video, aggregate_player_numbers
 except Exception:
     batch_recognize_over_video = None
     aggregate_player_numbers = None
 
-# optional metrics helpers (defensive)
+# optional metrics helpers
 try:
     from utils.metrics import classification_metrics, mean_average_precision
 except Exception:
@@ -341,14 +343,21 @@ def main():
 
         ocr_results = ensure_list_length(ocr_results, n_frames)
         
-        # --- START REPLACEMENT ---
-        # (The import is already at the top of the file)
         if ocr_results:
             try:
                 # Use the new temporal smoothing function
                 smoothed_map = temporal_smooth_player_labels(ocr_results, min_confidence=0.25, min_occurrence=2, window_size=11)
                 player_number_map = smoothed_map
                 print("[INFO] Smoothed player_number_map:", player_number_map)
+                
+                # --- SAVE JERSEY NUMBER MAP STUB ---
+                try:
+                    save_stub(stub("jersey_numbers_map_stub.pkl"), player_number_map)
+                    print("[DBG] Saved jersey_numbers_map_stub.pkl")
+                except Exception as e:
+                    print("[WARN] Failed to save jersey_numbers_map_stub.pkl:", e)
+                # -----------------------------------
+
             except Exception as e:
                 print("[WARN] temporal_smooth_player_labels failed:", e)
                 traceback.print_exc()
@@ -360,7 +369,6 @@ def main():
                 sample_keys = list(ocr_results[i].keys())[:6]
                 sample_dict = {k: ocr_results[i][k] for k in sample_keys}
                 print(f" frame {i}: {sample_dict}")
-        # --- END REPLACEMENT ---
                 
     else:
         ocr_results = [ {} for _ in range(n_frames) ]
@@ -452,8 +460,7 @@ def main():
             pass
     print("----------------------------------------------------------\n")
 
-    # --- START REPLACEMENT ---
-    import pickle
+    # M_per_px Calibration Loading
     try:
         m_per_px = pickle.load(open("stubs/m_per_px.pkl","rb"))
         print("[INFO] Loaded calibrated meters_per_px =", m_per_px)
@@ -462,7 +469,6 @@ def main():
         m_per_px = (tactical_converter.actual_width_in_meters / max(1, tactical_converter.width)
                     + tactical_converter.actual_height_in_meters / max(1, tactical_converter.height)) / 2.0
         print("[SANITY] fallback meters_per_pixel ~", m_per_px)
-    # --- END REPLACEMENT ---
 
     try:
         save_stub(stub("tactical_player_positions_stub.pkl"), tactical_player_positions)
@@ -570,6 +576,61 @@ def main():
     except Exception:
         pass
 
+    # -------------------------------------------------------------
+    # 12.5) Predictive Play Engine (rule-based next-action predictions)
+    # -------------------------------------------------------------
+    predictive_actions = [""] * n_frames
+    try:
+        from predictive_play_engine import build_frame_contexts, predict_next_actions
+        print("[INFO] Building frame contexts for Predictive Play Engine...")
+        frame_contexts = build_frame_contexts(
+            tactical_player_positions=tactical_player_positions,
+            ball_acquisition=ball_acquisition,
+            player_assignment=player_assignment,
+            ball_tracks=ball_tracks,
+            court_keypoints=court_keypoints,
+            player_speed_per_frame=player_speed_per_frame,
+            fps=fps_input or 30.0,
+            meters_per_pixel=m_per_px,
+            tactical_width_m=tactical_converter.actual_width_in_meters,
+            tactical_height_m=tactical_converter.actual_height_in_meters,
+        )
+        predictive_actions = predict_next_actions(frame_contexts)
+        # pad/trim just in case
+        if len(predictive_actions) < n_frames:
+            predictive_actions = predictive_actions + [""] * (n_frames - len(predictive_actions))
+        elif len(predictive_actions) > n_frames:
+            predictive_actions = predictive_actions[:n_frames]
+        try:
+            save_stub(stub("predictive_actions_stub.pkl"), predictive_actions)
+        except Exception:
+            pass
+        print("[INFO] Predictive Play Engine generated actions for", len(predictive_actions), "frames.")
+
+        # ===============================
+        # SAVE PREDICTIVE PLAY TO CSV
+        # ===============================
+        csv_path = "output_csv/predictive_actions.csv"
+        os.makedirs("output_csv", exist_ok=True)
+
+        with open(csv_path, mode="w", newline="") as file:
+            writer = csv.writer(file)
+            writer.writerow(["frame", "predicted_action"])
+
+            for frame_idx, action in enumerate(predictive_actions):
+                # Normalize action to "NONE" if empty or None
+                if action is None or action == "":
+                    action_str = "NONE"
+                else:
+                    action_str = str(action)
+                writer.writerow([frame_idx, action_str])
+
+        print(f"[INFO] Predictive Play CSV saved to {csv_path}")
+
+    except Exception as e:
+        print("[WARN] Predictive Play Engine failed or not found:", e)
+        traceback.print_exc()
+
     # 13) Drawing pipeline
     print("[INFO] Running drawing pipeline...")
     player_tracks_drawer = PlayerTracksDrawer()
@@ -623,21 +684,18 @@ def main():
         print("[WARN] Final frames invalid -> falling back to original frames")
         output_frames = frames
 
-    # overlay pose/activity/shot markers (simple overlay so you can see them in the video)
+    # overlay pose/activity/shot markers
     if cv2 is not None:
         for i in range(n_frames):
             frame = output_frames[i]
-            # Draw simple pose landmarks if present (frame coords assumed to be in pixel space inside pose_results)
+            # Draw simple pose landmarks
             pr = pose_results[i] if i < len(pose_results) else None
             if pr and isinstance(pr, dict):
                 try:
                     for _, lm in (pr or {}).items():
-                        # lm expected (x_px, y_px, visibility)
-                        if not lm: 
-                            continue
+                        if not lm: continue
                         x, y, v = lm[:3]
-                        if v is None: 
-                            continue
+                        if v is None: continue
                         try:
                             cv2.circle(frame, (int(round(x)), int(round(y))), 2, (0,255,0), -1)
                         except Exception:
@@ -646,14 +704,12 @@ def main():
                     pass
             # draw activity labels and shot text
             try:
-                # activity is dict per frame mapping player_id -> label
                 acts = activity[i] if i < len(activity) else {}
                 p_tracks = player_tracks[i] if i < len(player_tracks) else {}
                 for pid, label in (acts or {}).items():
                     try:
                         pdata = p_tracks.get(pid) if isinstance(p_tracks, dict) else None
-                        if not pdata:
-                            continue
+                        if not pdata: continue
                         bbox = pdata.get("bbox")
                         if bbox and len(bbox) >= 4:
                             x1,y1 = int(float(bbox[0])), int(float(bbox[1]))
@@ -668,6 +724,25 @@ def main():
                     cv2.putText(frame, "SHOT", (20,40), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0,0,255), 3, cv2.LINE_AA)
             except Exception:
                 pass
+
+            # --- Predictive Play Overlay ---
+            try:
+                if i < len(predictive_actions):
+                    pred_label = predictive_actions[i]
+                    if pred_label:
+                        cv2.putText(
+                            frame,
+                            f"Next: {pred_label}",
+                            (20, 70),  # vertical position slightly below SHOT
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.8,
+                            (255, 255, 0),
+                            2,
+                            cv2.LINE_AA
+                        )
+            except Exception:
+                pass
+
             output_frames[i] = frame
 
     # 14) Save video
@@ -686,8 +761,7 @@ def main():
 
     print("[INFO] Pipeline complete. Output written to:", args.output_video)
 
-    # 15) Metrics - only if GT files are present in stub folder
-    # Shots metrics: look for shots_gt.pkl (list of booleans or frame indices)
+    # 15) Metrics (optional)
     shots_gt = None
     try:
         shots_gt = read_stub(True, stub("shots_gt.pkl"))
@@ -696,12 +770,10 @@ def main():
 
     if shots_gt is not None and _HAS_SHOT_MODULE and evaluate_shots is not None:
         try:
-            # normalize gt to boolean list
             if isinstance(shots_gt, list) and all(isinstance(x, (bool,int)) for x in shots_gt):
                 if all(isinstance(x, bool) for x in shots_gt) and len(shots_gt) == len(shots):
                     gt_bool = shots_gt
                 else:
-                    # assume list of indices
                     gt_bool = [False] * n_frames
                     for idx in shots_gt:
                         if 0 <= int(idx) < n_frames:
@@ -712,34 +784,56 @@ def main():
             print("[METRICS] Shot detection:", metrics_shots)
         except Exception as e:
             print("[WARN] evaluate_shots failed:", e)
-    else:
-        if shots_gt is None:
-            print("[INFO] No shots_gt.pkl found -> skipping shot metrics.")
-        else:
-            print("[INFO] Shot evaluation module not available -> skipping shot metrics.")
 
-    # Team / jersey metrics: only if stubs present (skipping heavy logic if not)
-    team_gt = None
+    # ===============================
+    # AUTO GENERATE PROFESSIONAL CSV ANALYTICS
+    # ===============================
     try:
-        team_gt = read_stub(True, stub("team_gt.pkl"))
-    except Exception:
-        team_gt = None
+        print("[INFO] Generating advanced analytics CSV tables...")
+        # Ensure analytics folder exists
+        os.makedirs("analytics", exist_ok=True)
+        
+        from tools.build_analytics_tables import build_analytics
 
-    if team_gt is not None:
-        print("[INFO] team_gt.pkl found. You can implement evaluation logic here to compare player_assignment -> team_gt.")
-    else:
-        print("[INFO] No team_gt.pkl found -> skipping team assignment metrics.")
+        build_analytics(
+            stubs_dir=args.stub_path,            # Use argument for robustness
+            analytics_dir="analytics",
+            predictive_csv="output_csv/predictive_actions.csv"  # Points to file created in step 12.5
+        )
 
-    jersey_gt = None
+        print("[SUCCESS] Analytics CSVs generated automatically in /analytics folder")
+
+    except Exception as e:
+        print("[WARN] Failed to auto-generate analytics CSV:", e)
+        traceback.print_exc()
+
+    # ===============================
+    # 16) Generate visualizations (pass network + heatmaps)
+    # ===============================
     try:
-        jersey_gt = read_stub(True, stub("jersey_gt.pkl"))
-    except Exception:
-        jersey_gt = None
+        print("[INFO] Generating visualizations (pass network + heatmaps)...")
+        from tools.generate_visualizations import generate_visualizations
 
-    if jersey_gt is not None:
-        print("[INFO] jersey_gt.pkl found. You can implement comparison between player_number_map and jersey_gt here.")
-    else:
-        print("[INFO] No jersey_gt.pkl found -> skipping jersey OCR metrics.")
+        # args.stub_path is already used for stubs
+        generate_visualizations(
+            stubs_dir=args.stub_path,
+            analytics_dir="analytics",
+            viz_dir="viz"
+        )
+        print("[INFO] Visualization PNGs saved under ./viz")
+
+    except Exception as e:
+        print("[WARN] Visualization generation failed:", e)
+
+    # Generate Pass Network Graph
+    try:
+        from tools.generate_pass_network import generate_pass_network
+        generate_pass_network(
+            stubs_dir=args.stub_path,
+            output_path="viz/pass_network.png"
+        )
+    except Exception as e:
+        print("[WARN] Pass network generation failed:", e)
 
 if __name__ == "__main__":
     main()

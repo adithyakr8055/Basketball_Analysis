@@ -1,0 +1,2 @@
+possession_id,team,start_frame,end_frame,duration_frames,duration_seconds,total_passes,total_interceptions_against,avg_spacing_m,avg_defensive_pressure_m,avg_context_risk_index,num_shots_in_possession,terminal_event_type
+1,1,43,97,55,,0,0,59.94391531562624,,0.227,0,END_NO_EVENT

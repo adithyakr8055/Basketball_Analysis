@@ -1,0 +1,5 @@
+predicted_action,count_frames,count_possessions,next_5f_passes,next_5f_interceptions,next_5f_shots,avg_context_risk_index
+NO_POSSESSION,62,0,0,0,0,0.37
+RESET_PLAY,10,1,0,0,0,0.358
+STABLE_POSSESSION,4,1,0,0,0,0.37
+FAST_BREAK_PUSH,41,1,0,0,0,0.181

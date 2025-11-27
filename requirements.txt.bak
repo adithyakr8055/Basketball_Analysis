@@ -8,3 +8,36 @@ supervision==0.25.1
 torch==2.2.0
 transformers==4.46.3
 ultralytics==8.3.67
+# Core numerical and imaging
+numpy==1.26.4
+opencv-python==4.10.0.84
+pandas==2.0.3
+Pillow==11.1.0
+scipy==1.15.3
+
+# Deep learning / detection libs
+torch==2.2.0
+torchvision==0.17.0
+ultralytics==8.3.67
+transformers==4.46.3
+timm==1.0.22
+ftfy==6.3.1
+
+# OCR / vision utilities
+easyocr==1.7.2
+pytesseract==0.3.13
+scikit-image==0.25.2
+
+# Project helper libs
+roboflow==1.1.51
+supervision==0.25.1
+psutil
+tqdm
+python-dotenv
+
+# Mediapipe (pose / landmarks)
+mediapipe==0.10.21
+
+# Useful tokenizer / safe storage
+tokenizers==0.20.3
+safetensors==0.6.2

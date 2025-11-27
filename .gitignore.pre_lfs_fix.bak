@@ -1,0 +1,39 @@
+# Python / IDE / OS
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+basketball_venv311/
+*.swp
+.vscode/
+.idea/
+.DS_Store
+
+# Data / outputs / large artifacts (do not track)
+output_images/
+*.pkl
+*.npz
+*.npy
+logs/
+tmp/
+*.log
+
+# model / checkpoints
+checkpoints/
+*.pt
+*.pth
+
+# Notebook checkpoints
+.ipynb_checkpoints/
+
+# system
+*.egg-info/
+dist/
+build/
+
+# git lfs metadata (already tracked by lfs)
+.gitattributes
+
